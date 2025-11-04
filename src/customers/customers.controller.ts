@@ -1,9 +1,14 @@
-import { Body, Controller, Post, Get, Query, Patch, Param, DefaultValuePipe, ParseIntPipe, Delete } from '@nestjs/common';
+import { Body, Controller, Post, Get, Query, Patch, Param, DefaultValuePipe, ParseIntPipe, Delete, UseGuards, Req, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CustomerService } from './customers.service';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/create-customer.dto';
 import { RenewSubscriptionDto } from './dto/renew-Subscription.dto';
 import { CancelSubDto } from './dto/cancel-sub.dto';
+import { JwtAuthGuard } from 'src/common/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/common/decorators/roles.guard';
+import { Roles } from 'src/common/decorators/roles.decorator';
 
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles("MESSADMIN")
 @Controller('customer')
 export class CustomerController {
     constructor(private readonly cusomerservice: CustomerService) { }
@@ -26,8 +31,9 @@ export class CustomerController {
         @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
         @Query('search') search?: string,
+        @Query('messId') messId?: string,
     ) {
-        return this.cusomerservice.findAll(page, limit, search);
+        return this.cusomerservice.findAll(page, limit, search, messId);
     }
 
     // 🔍 GET /customers/:id
@@ -65,5 +71,35 @@ export class CustomerController {
     async getVariationCount(@Query('date') date: string) {
         return this.cusomerservice.getVariationCountByDate(date);
     }
+
+    @Get("owners/messes")
+    async getAllMesses(@Req() req) {
+        const userId = req.user?.id;
+        console.log('Extracted userId from JWT payload:', userId);
+        if (!userId) {
+            throw new NotFoundException('User not found in request');
+        }
+
+        return this.cusomerservice.getAllMesses(userId);
+    }
+
+    @Post('add/mess')
+    async addMessToMessAdmin(
+        @Body('userId') userId: string,
+        @Body('messId') messId: string,
+    ) {
+        // ✅ Validate inputs
+        if (!userId) {
+            throw new BadRequestException('userId is required');
+        }
+
+        if (!messId) {
+            throw new BadRequestException('messId is required');
+        }
+
+        // ✅ Call the service function
+        return this.cusomerservice.addMessToMessAdmin(userId, messId);
+    }
+
 
 } 
